@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow">
+        <div class="card-header bg-success text-white">
+            <h3 class="mb-0">Booking Confirmed!</h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-success">
+                <h4>Thank you for your booking!</h4>
+                <p>Your booking has been confirmed and your ticket has been reserved.</p>
+            </div>
+            
+            <div class="ticket-details">
+                <h5>Booking Details</h5>
+                <p><strong>Booking Reference:</strong> #{{ booking.id }}</p>
+                <p><strong>Flight Number:</strong> {{ booking.flight.flight_number }}</p>
+                <p><strong>From:</strong> {{ booking.flight.origin }}</p>
+                <p><strong>To:</strong> {{ booking.flight.destination }}</p>
+                <p><strong>Departure:</strong> {{ booking.flight.departure_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                <p><strong>Seat Number:</strong> {{ booking.seat_number }}</p>
+                <p><strong>Booking Date:</strong> {{ booking.booking_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                <p><strong>Status:</strong> {{ booking.status }}</p>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{{ url_for('home') }}" class="btn btn-primary">Return to Home</a>
+                <a href="{{ url_for('mybookings') }}" class="btn btn-info">View All Bookings</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

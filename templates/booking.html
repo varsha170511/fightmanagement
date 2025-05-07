@@ -1,67 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking History</title>
-    <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Add CSS to handle the padding for table cells */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+{% extends "base.html" %}
 
-        td, th {
-            padding: 10px;
-            border: 1px solid #ddd;
-        }
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center mb-4">Your Booking History</h2>
 
-        th {
-            background-color: #f2f2f2;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Your Booking History</h1>
-
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <ul>
-                    {% for message in messages %}
-                        <li>{{ message }}</li>
-                    {% endfor %}
-                </ul>
-            {% endif %}
-        {% endwith %}
-
-        <table>
+    {% if bookings %}
+    <div class="table-responsive">
+        <table class="table table-hover">
             <thead>
                 <tr>
-                    <th scope="col">Place</th>
-                    <th scope="col">Flight</th>
-                    <th scope="col">Seat</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Date</th>
+                    <th>Flight Number</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Departure</th>
+                    <th>Seat</th>
+                    <th>Status</th>
+                    <th>Booking Date</th>
                 </tr>
             </thead>
             <tbody>
                 {% for booking in bookings %}
                 <tr>
-                    <td>{{ booking.place_name }}</td>
-                    <td>{{ booking.flight_number }}</td>
+                    <td>{{ booking.flight.flight_number }}</td>
+                    <td>{{ booking.flight.origin }}</td>
+                    <td>{{ booking.flight.destination }}</td>
+                    <td>{{ booking.flight.departure_date.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>{{ booking.seat_number }}</td>
                     <td>{{ booking.status }}</td>
-                    <td>{{ booking.booking_date }}</td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="5">No bookings found.</td>
+                    <td>{{ booking.booking_date.strftime('%Y-%m-%d %H:%M') }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</body>
-</html>
+    {% else %}
+    <div class="alert alert-info text-center">
+        You have no bookings yet.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

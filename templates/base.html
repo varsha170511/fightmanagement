@@ -15,26 +15,25 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
+                <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('home') }}">Home</a>
                     </li>
+                    {% if 'user_id' in session %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('booking') }}">My Bookings</a>
+                        <a class="nav-link" href="{{ url_for('mybookings') }}">My Bookings</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    </li>
+                    {% else %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('signup') }}">Sign Up</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('login') }}">Login</a>
                     </li>
-
-                    <!-- Loop through places and create dynamic links -->
-                    {% for place in places %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('place', place_id=place.id) }}">{{ place.name }}</a>
-                        </li>
-                    {% endfor %}
+                    {% endif %}
                 </ul>
             </div>
         </div>

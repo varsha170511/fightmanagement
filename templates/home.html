@@ -2,32 +2,71 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="text-center mb-4 text-primary">Your Flight Bookings</h2>
+    <h2 class="text-center mb-4 text-primary">Available Flights</h2>
+    
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Flight Number</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Departure</th>
+                            <th>Arrival</th>
+                            <th>Price</th>
+                            <th>Available Seats</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for flight in flights %}
+                        <tr>
+                            <td>{{ flight.flight_number }}</td>
+                            <td>{{ flight.origin }}</td>
+                            <td>{{ flight.destination }}</td>
+                            <td>{{ flight.departure_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ flight.arrival_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>${{ flight.price }}</td>
+                            <td>{{ flight.available_seats }}</td>
+                            <td>
+                                {% if flight.available_seats > 0 %}
+                                <form action="{{ url_for('book_flight', flight_id=flight.id) }}" method="POST">
+                                    <button type="submit" class="btn btn-primary btn-sm">Book Now</button>
+                                </form>
+                                {% else %}
+                                <button class="btn btn-secondary btn-sm" disabled>Sold Out</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    {% if bookings %}
-        <div class="row">
-            {% for b in bookings %}
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card border-0 shadow rounded-4 bg-light">
-                    <div class="card-body">
-                        <h5 class="card-title text-success fw-bold">{{ b.flight_name }}</h5>
-                        <p class="card-text text-dark">
-                            <strong>From:</strong> {{ b.origin }}<br>
-                            <strong>To:</strong> {{ b.destination }}<br>
-                            <strong>Departure:</strong> {{ b.departure_date }}<br>
-                            <strong>Arrival:</strong> {{ b.arrival_date }}<br>
-                            <strong>Passengers:</strong> {{ b.num_passengers }}<br>
-                            <strong>Class:</strong> {{ b.travel_class }}
-                        </p>
-                    </div>
+    {% if 'user_id' in session %}
+    <h2 class="text-center mb-4 text-primary">Your Flight Bookings</h2>
+    <div class="row">
+        {% for booking in bookings %}
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ booking.flight.flight_number }}</h5>
+                    <p class="card-text">
+                        From: {{ booking.flight.origin }}<br>
+                        To: {{ booking.flight.destination }}<br>
+                        Departure: {{ booking.flight.departure_date.strftime('%Y-%m-%d %H:%M') }}<br>
+                        Seat: {{ booking.seat_number }}<br>
+                        Status: {{ booking.status }}
+                    </p>
                 </div>
             </div>
-            {% endfor %}
         </div>
-    {% else %}
-        <div class="alert alert-warning text-center" role="alert">
-            You have no flight bookings yet. Search and book your flight now!
-        </div>
+        {% endfor %}
+    </div>
     {% endif %}
 </div>
 {% endblock %}

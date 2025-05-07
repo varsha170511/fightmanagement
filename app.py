@@ -1,21 +1,87 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-import mysql.connector
-from dbconfig import db
+from datetime import datetime
+import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Replace with a strong secret in production
+app.secret_key = 'your_secret_key'
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'flight_management.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-cursor = db.cursor(dictionary=True)
+db = SQLAlchemy(app)
 
-# Home Route
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    bookings = db.relationship('Booking', backref='user', lazy=True)
+
+class Flight(db.Model):
+    __tablename__ = 'flights'
+    id = db.Column(db.Integer, primary_key=True)
+    flight_number = db.Column(db.String(50), unique=True, nullable=False)
+    origin = db.Column(db.String(100), nullable=False)
+    destination = db.Column(db.String(100), nullable=False)
+    departure_date = db.Column(db.DateTime, nullable=False)
+    arrival_date = db.Column(db.DateTime, nullable=False)
+    available_seats = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+
+class Booking(db.Model):
+    __tablename__ = 'bookings'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    flight_id = db.Column(db.Integer, db.ForeignKey('flights.id'), nullable=False)
+    booking_date = db.Column(db.DateTime, default=datetime.utcnow)
+    seat_number = db.Column(db.String(10))
+    status = db.Column(db.String(50), default='Confirmed')
+    flight = db.relationship('Flight', backref='bookings')
+
 @app.route('/')
 def home():
-    cursor.execute("SELECT * FROM places")
-    places = cursor.fetchall()
-    return render_template('home.html', places=places)
+    flights = Flight.query.all()
+    bookings = []
+    if 'user_id' in session:
+        bookings = Booking.query.filter_by(user_id=session['user_id']).all()
+    return render_template('home.html', flights=flights, bookings=bookings)
 
-# Signup Route
+@app.route('/book_flight/<int:flight_id>', methods=['GET', 'POST'])
+def book_flight(flight_id):
+    if 'user_id' not in session:
+        flash("Please login to book a flight")
+        return redirect(url_for('login'))
+    
+    flight = Flight.query.get_or_404(flight_id)
+    
+    if request.method == 'GET':
+        return render_template('book_flight.html', flight=flight)
+    
+    if flight.available_seats <= 0:
+        flash("Sorry, no seats available")
+        return redirect(url_for('home'))
+
+    booking = Booking(
+        user_id=session['user_id'],
+        flight_id=flight_id,
+        seat_number=f"A{flight.available_seats}"
+    )
+    
+    flight.available_seats -= 1
+    
+    try:
+        db.session.add(booking)
+        db.session.commit()
+        flash("Flight booked successfully!")
+        return redirect(url_for('booking_confirmation', booking_id=booking.id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Booking failed! Error: {str(e)}")
+        return redirect(url_for('home'))
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
@@ -23,138 +89,124 @@ def signup():
         email = request.form['email']
         password = generate_password_hash(request.form['password'])
 
-        # Check if email already exists
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        existing = cursor.fetchone()
-        if existing:
+        if User.query.filter_by(email=email).first():
             flash("Email already registered.")
             return redirect(url_for('signup'))
 
-        # Insert new user into the database
+        user = User(username=username, email=email, password=password)
         try:
-            cursor.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s)", (username, email, password))
-            db.commit()
+            db.session.add(user)
+            db.session.commit()
             flash("Signup successful! Please log in.")
             return redirect(url_for('login'))
-        except mysql.connector.Error as err:
-            flash(f"Error: {err}")
-            db.rollback()
+        except Exception as e:
+            flash(f"Error: {str(e)}")
+            db.session.rollback()
 
     return render_template('signup.html')
 
-# Login Route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Check if user is already logged in
+    if 'user_id' in session:
+        return redirect(url_for('home'))
+
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
+        email = request.form.get('email')
+        password = request.form.get('password')
 
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
+        if not email or not password:
+            flash('Please fill in all fields', 'danger')
+            return render_template('login.html')
 
-        if user and check_password_hash(user['password'], password):
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            flash("Logged in successfully!")
-            return redirect(url_for('home'))
-        else:
-            flash("Invalid email or password.")
+        try:
+            user = User.query.filter_by(email=email).first()
+            if user and check_password_hash(user.password, password):
+                # Set session variables
+                session['user_id'] = user.id
+                session['username'] = user.username
+                
+                # Commit the session
+                session.modified = True
+                
+                flash('Login successful!', 'success')
+                # Explicitly return a redirect response
+                return redirect(url_for('home'))
+            else:
+                flash('Invalid email or password', 'danger')
+                return render_template('login.html')
+        except Exception as e:
+            flash(f'An error occurred: {str(e)}', 'danger')
+            return render_template('login.html')
 
+    # GET request - show the login form
     return render_template('login.html')
 
-# Logout Route
 @app.route('/logout')
 def logout():
-    session.clear()  # Simply clear the session to log the user out
+    session.clear()
     flash("Logged out successfully.")
     return redirect(url_for('home'))
 
-# Search Route
-@app.route('/search', methods=['POST'])
-def search():
-    query = request.form['query']
-    if not query:
-        flash("Please enter a search query.")
+@app.route('/booking_confirmation/<int:booking_id>')
+def booking_confirmation(booking_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.user_id != session['user_id']:
+        flash("Unauthorized access")
         return redirect(url_for('home'))
+    
+    return render_template('booking_confirmation.html', booking=booking)
 
-    try:
-        cursor.execute("SELECT * FROM places WHERE name LIKE %s", (f"%{query}%",))
-        results = cursor.fetchall()
-        if not results:
-            flash("No places found matching your search.")
-    except mysql.connector.Error as err:
-        flash(f"Error: {err}")
-        results = []
-
-    return render_template('home.html', results=results)
-
-# View Place + Check-in/Check-out Form
-@app.route('/place/<int:place_id>', methods=['GET', 'POST'])
-def place(place_id):
-    cursor.execute("SELECT * FROM places WHERE id = %s", (place_id,))
-    place = cursor.fetchone()
-    if not place:
-        flash("Place not found.")
-        return redirect(url_for('home'))
-
-    if request.method == 'POST':
-        if 'user_id' not in session:
-            flash("You need to log in to make a booking.")
-            return redirect(url_for('login'))
-
-        hotel_name = request.form['hotel_name']
-        room_size = request.form['room_size']
-        num_persons = request.form['num_persons']
-        in_date = request.form['in_date']
-        out_date = request.form['out_date']
-        special_request = request.form['special_requests']  # Selected special request
-        other_request = request.form.get('other_request', '')  # Other request if "Others" is selected
-
-        # Validate the booking details
-        if not hotel_name or not room_size or not num_persons or not in_date or not out_date:
-            flash("All fields are required.")
-            return render_template('place.html', place=place)
-
-        if special_request == "Others" and other_request:
-            special_request = f"{special_request}: {other_request}"
-
-        user_id = session['user_id']
-
-        # Insert booking details into the database
-        try:
-            cursor.execute("""
-                INSERT INTO bookings (user_id, place_id, hotel_name, room_size, num_persons, check_in, check_out, special_requests)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (user_id, place_id, hotel_name, room_size, num_persons, in_date, out_date, special_request))
-            db.commit()
-            flash(f"Booking for {place['name']} confirmed from {in_date} to {out_date}!")
-        except mysql.connector.Error as err:
-            flash(f"Error: {err}")
-            db.rollback()
-
-        return redirect(url_for('home'))
-
-    return render_template('place.html', place=place)
-
-# Booking Route (View bookings)
-@app.route('/booking')
-def booking():
+@app.route('/mybookings')
+def mybookings():
     if 'user_id' not in session:
         flash("You must log in to view your bookings.")
         return redirect(url_for('login'))
 
-    cursor.execute("""
-        SELECT b.*, p.name AS place_name
-        FROM bookings b
-        JOIN places p ON b.place_id = p.id
-        WHERE b.user_id = %s
-        ORDER BY b.booking_date DESC
-    """, (session['user_id'],))
-
-    bookings = cursor.fetchall()
-
+    bookings = Booking.query.filter_by(user_id=session['user_id']).all()
     return render_template('booking.html', bookings=bookings)
 
-# Run the app
+def init_db():
+    with app.app_context():
+        db.create_all()
+        
+        # Add sample flights if none exist
+        if not Flight.query.first():
+            sample_flights = [
+                Flight(
+                    flight_number='AI101',
+                    origin='Mumbai',
+                    destination='Delhi',
+                    departure_date=datetime(2024, 2, 1, 10, 0),
+                    arrival_date=datetime(2024, 2, 1, 12, 0),
+                    available_seats=150,
+                    price=199.99
+                ),
+                Flight(
+                    flight_number='AI102',
+                    origin='Delhi',
+                    destination='Bangalore',
+                    departure_date=datetime(2024, 2, 1, 14, 0),
+                    arrival_date=datetime(2024, 2, 1, 16, 30),
+                    available_seats=120,
+                    price=249.99
+                ),
+                Flight(
+                    flight_number='AI103',
+                    origin='Bangalore',
+                    destination='Chennai',
+                    departure_date=datetime(2024, 2, 2, 9, 0),
+                    arrival_date=datetime(2024, 2, 2, 10, 30),
+                    available_seats=100,
+                    price=149.99
+                )
+            ]
+            db.session.add_all(sample_flights)
+            db.session.commit()
+
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    init_db()
+    app.run(debug=True)
