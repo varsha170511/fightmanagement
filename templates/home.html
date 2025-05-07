@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center mb-4 text-primary">Your Flight Bookings</h2>
+
+    {% if bookings %}
+        <div class="row">
+            {% for b in bookings %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card border-0 shadow rounded-4 bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-success fw-bold">{{ b.flight_name }}</h5>
+                        <p class="card-text text-dark">
+                            <strong>From:</strong> {{ b.origin }}<br>
+                            <strong>To:</strong> {{ b.destination }}<br>
+                            <strong>Departure:</strong> {{ b.departure_date }}<br>
+                            <strong>Arrival:</strong> {{ b.arrival_date }}<br>
+                            <strong>Passengers:</strong> {{ b.num_passengers }}<br>
+                            <strong>Class:</strong> {{ b.travel_class }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-warning text-center" role="alert">
+            You have no flight bookings yet. Search and book your flight now!
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
